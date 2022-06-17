@@ -44,8 +44,8 @@ void setup()
   /*Serial.println(F("Serial communication between 2 arduino"));
   Serial.println(F("Sender"));*/
 
-  SerialCommand.triac_1=1;
-  SerialCommand.triac_2=2;
+  SerialCommand.triac_1=80;
+  SerialCommand.triac_2=40;
   //SerialCommand.triac_3=3;
   //SerialCommand.triac_4=4;
 
@@ -60,8 +60,6 @@ void loop()
 
   serial_send();
 
-  SerialCommand.triac_1++;
-  SerialCommand.triac_2++;
   //SerialCommand.triac_3++;
   //SerialCommand.triac_4++;
 }

@@ -16,11 +16,10 @@
 
 #define P_MAX 2400 // puissance du récepteur
 
-#define ZERO_CROSS_1_PIN 10
-#define GACHETTE_1_PIN 6
+#define ZERO_CROSS_PIN 2
+#define GACHETTE_1_PIN 12
 
-#define ZERO_CROSS_2_PIN 10
-#define GACHETTE_2_PIN 6
+#define GACHETTE_2_PIN A7
 
 #define VENTILO_PIN 8
 
@@ -59,19 +58,18 @@ unsigned int millis_loop_max = 0;
 
 bool zero_crossMem = 0; // variable pour l'état précédent du zero cross
 bool zero_cross = 0;    // variable pour l'état actuel du zero cross
+bool triac_start = 0;   // variable pour l'état de la led
+bool gachettemem = 0;
+unsigned int delai_triac = 0;
 
 class Triac
 {
 
 private:
-  bool triac_start = 0; // variable pour l'état de la led
-  bool gachettemem = 0;
-  unsigned int delai_triac = 0;
-  int ZERO_CROSS_PIN;
   int GACHETTE_PIN;
 
 public:
-  Triac(int Z_CROSS_PIN, int GACH_PIN)
+  Triac(int GACH_PIN)
   {
     ZERO_CROSS_PIN = Z_CROSS_PIN;
     GACHETTE_PIN = GACH_PIN;
@@ -85,8 +83,8 @@ public:
   }
 };
 
-Triac triac_1(ZERO_CROSS_1_PIN, GACHETTE_1_PIN);
-Triac triac_2(ZERO_CROSS_2_PIN, GACHETTE_2_PIN);
+Triac triac_1(GACHETTE_1_PIN);
+Triac triac_2(GACHETTE_2_PIN);
 
 // ***********************************************************************
 // ***********************     FUNCTION SETUP     ************************
@@ -142,15 +140,15 @@ void loop()
       Serial.println("");
     }
 
-    if (Consigne_triac.triac_1 > Consigne_triac.triac_2)
-    {
-      unsigned int delai_triac = map(consigne_triac.triac_1, 1, P_MAX, 8400, 2); // valeur voulue , mini, maxi(de la valeur voulue), délai maxi pour avoir 0 et délai mini pour avoir toute la sinusoide)
-      delayMicroseconds(delai_triac);
-      triac_1.pulse();
-      delai_triac = map(Consigne_triac.triac_1 - Consigne_triac.triac_2, 1, P_MAX, 8400, 2);
-      delayMicroseconds(delai_triac);
-      triac_2.pulse();
-    }
+    // if (Consigne_triac.triac_1 > Consigne_triac.triac_2)
+    //{
+    unsigned int delai_triac = map(consigne_triac.triac_1, 1, P_MAX, 8400, 2); // valeur voulue , mini, maxi(de la valeur voulue), délai maxi pour avoir 0 et délai mini pour avoir toute la sinusoide)
+    delayMicroseconds(delai_triac);
+    triac_1.pulse();
+    delai_triac = map(Consigne_triac.triac_1 - Consigne_triac.triac_2, 1, P_MAX, 8400, 2);
+    delayMicroseconds(delai_triac);
+    triac_2.pulse();
+    //}
 
     triac_start = LOW;
   }

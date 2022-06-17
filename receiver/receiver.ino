@@ -19,7 +19,7 @@
 #define ZERO_CROSS_PIN 2
 #define GACHETTE_1_PIN 12
 
-#define GACHETTE_2_PIN A7
+#define GACHETTE_2_PIN 4
 
 #define VENTILO_PIN 8
 
@@ -71,7 +71,6 @@ private:
 public:
   Triac(int GACH_PIN)
   {
-    ZERO_CROSS_PIN = Z_CROSS_PIN;
     GACHETTE_PIN = GACH_PIN;
   }
 
@@ -128,24 +127,25 @@ void loop()
     {
       millis_min_max(millis_loop_start, millis_loop, millis_loop_min, millis_loop_max);
 
-      Serial.print(F("millis_loop :"));
+      /*Serial.print(F("millis:"));
       Serial.print(millis_loop);
-      /*Serial.print(F("\t  min :"));
+      Serial.print(F("\t  min :"));
       Serial.print(millis_loop_min);
       Serial.print(F("\t max :"));
-      Serial.print(millis_loop_max);*/
-      Serial.print(F("\t sucess :"));
+      Serial.print(millis_loop_max);
+      Serial.print(F("\t sucess:"));
       Serial.print(map(msg_succes, 0, msg_succes + msg_echec, 0, 100));
       Serial.print(F("%"));
-      Serial.println("");
+      Serial.println("");*/
     }
 
     // if (Consigne_triac.triac_1 > Consigne_triac.triac_2)
     //{
-    unsigned int delai_triac = map(consigne_triac.triac_1, 1, P_MAX, 8400, 2); // valeur voulue , mini, maxi(de la valeur voulue), délai maxi pour avoir 0 et délai mini pour avoir toute la sinusoide)
+    unsigned int delai_triac = map(Consigne_triac.triac_1, 1, P_MAX, 8400, 2); // valeur voulue , mini, maxi(de la valeur voulue), délai maxi pour avoir 0 et délai mini pour avoir toute la sinusoide)
     delayMicroseconds(delai_triac);
     triac_1.pulse();
-    delai_triac = map(Consigne_triac.triac_1 - Consigne_triac.triac_2, 1, P_MAX, 8400, 2);
+
+    delai_triac = map(Consigne_triac.triac_1 - Consigne_triac.triac_2, 1, P_MAX, 8400, 2);   
     delayMicroseconds(delai_triac);
     triac_2.pulse();
     //}
@@ -161,10 +161,12 @@ void loop()
 bool serial_receive()
 {
   // Check for new data availability in the Serial buffer
-  if (!Soft_serial.available())
+  //if (!Soft_serial.available())
+  if (!Serial.available())
     return LOW;
 
-  incomingByte = Soft_serial.read();                                  // Read the incoming byte
+  //incomingByte = Soft_serial.read();  
+  incomingByte = Serial.read();                                  // Read the incoming byte
   bufStartFrame = ((uint16_t)(incomingByte) << 8) | incomingBytePrev; // Construct the start frame
 
   if (DEBUG_RX)
@@ -206,7 +208,7 @@ bool serial_receive()
       memcpy(&Consigne_triac, &New_consigne_triac, sizeof(SerialCommand));
 
       // Print data to built-in Serial
-      Serial.print("1: ");
+     /* Serial.print("1: ");
       Serial.print(Consigne_triac.triac_1);
       Serial.print(" 2: ");
       Serial.println(Consigne_triac.triac_2);
@@ -218,7 +220,7 @@ bool serial_receive()
     }
     else
     {
-      Serial.println("Non-valid data skipped");
+      //Serial.println("Non-valid data");
       msg_echec++;
     }
     idx = 0; // Reset the index (it prevents to enter in this if condition in the next cycle)

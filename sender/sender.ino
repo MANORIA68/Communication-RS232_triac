@@ -78,5 +78,5 @@ void serial_send()
   // Write to Serial
   //Soft_serial.write((uint8_t *)&SerialCommand, sizeof(SerialCommand));
   Serial.write((uint8_t *)&SerialCommand, sizeof(SerialCommand));
-  delay(10);
+  delay(400);
 }

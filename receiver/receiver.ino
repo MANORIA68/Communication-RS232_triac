@@ -14,6 +14,12 @@
 #define DEBUG_RX 0
 #define START_FRAME 0xABCD
 
+#define P_MAX 2400 //puissance du récepteur
+
+#define ZERO_CROSS_1_PIN 10
+#define GACHETTE_1_PIN = 6;
+#define VENTILO_PIN = 8;
+
 // ***********************************************************************
 // ********************     VARIABLES GLOBALES     ***********************
 // ***********************************************************************
@@ -25,20 +31,33 @@ typedef struct //  uint16_t -->65535
   uint16_t start;
   uint16_t triac_1;
   uint16_t triac_2;
-  uint16_t triac_3;
-  uint16_t triac_4;
+  // uint16_t triac_3;
+  // uint16_t triac_4;
   uint16_t checksum;
 } SerialCommand;
 
 SerialCommand Consigne_triac;
 SerialCommand New_consigne_triac;
 
-// Global variables
 uint8_t idx = 0;        // Index for new data pointer
 uint16_t bufStartFrame; // Buffer Start Frame
 byte *p;                // Pointer declaration for the new received data
 byte incomingByte;
 byte incomingBytePrev;
+unsigned int msg_succes = 0;
+unsigned int msg_echec = 0;
+
+// millis
+unsigned int millis_loop_start = 0;
+unsigned int millis_loop = 0;
+unsigned int millis_loop_min = 0;
+unsigned int millis_loop_max = 0;
+
+bool zero_crossMem = 0;         // variable pour l'état précédent du zero cross
+bool zero_cross = 0;            // variable pour l'état actuel du zero cross
+bool triac_on = 0;          // variable pour l'état de la led
+bool gachettemem = 0;
+unsigned int delai_triac = 0;
 
 // ***********************************************************************
 // ***********************     FUNCTION SETUP     ************************
@@ -58,14 +77,38 @@ void setup()
 
 void loop()
 {
-  serial_receive();
+
+  millis_loop_start = micros();
+
+  if (serial_receive())
+  {
+    millis_min_max(millis_loop_start, millis_loop, millis_loop_min, millis_loop_max);
+
+    Serial.print(F("millis_loop :"));
+    Serial.print(millis_loop);
+    /*Serial.print(F("\t  min :"));
+    Serial.print(millis_loop_min);
+    Serial.print(F("\t max :"));
+    Serial.print(millis_loop_max);*/
+    Serial.print(F("\t sucess :"));
+    Serial.print(map(msg_succes, 0, msg_succes + msg_echec, 0, 100));
+    Serial.print(F("%"));
+    Serial.println("");
+  }
+
+  management_triac(ZERO_CROSS_1_PIN,GACHETTE_1_PIN,Consigne_triac.triac_1)
+  management_triac(ZERO_CROSS_2_PIN,GACHETTE_2_PIN,Consigne_triac.triac_2)
 }
 
-void serial_receive()
+// ***********************************************************************
+// *******************    SERIAL COMMUNICATION    ************************
+// ***********************************************************************
+
+bool serial_receive()
 {
   // Check for new data availability in the Serial buffer
   if (!Soft_serial.available())
-    return;
+    return LOW;
 
   incomingByte = Soft_serial.read();                                  // Read the incoming byte
   bufStartFrame = ((uint16_t)(incomingByte) << 8) | incomingBytePrev; // Construct the start frame
@@ -74,7 +117,7 @@ void serial_receive()
   {
     Serial.print(incomingByte, HEX);
     Serial.print(" ");
-    return;
+    return LOW;
   }
 
   if (idx > sizeof(SerialCommand))
@@ -99,7 +142,8 @@ void serial_receive()
   if (idx == sizeof(SerialCommand))
   {
     uint16_t checksum;
-    checksum = (uint16_t)(New_consigne_triac.start ^ New_consigne_triac.triac_1 ^ New_consigne_triac.triac_2 ^ New_consigne_triac.triac_3 ^ New_consigne_triac.triac_4);
+    // checksum = (uint16_t)(New_consigne_triac.start ^ New_consigne_triac.triac_1 ^ New_consigne_triac.triac_2 ^ New_consigne_triac.triac_3 ^ New_consigne_triac.triac_4);
+    checksum = (uint16_t)(New_consigne_triac.start ^ New_consigne_triac.triac_1 ^ New_consigne_triac.triac_2);
 
     // Check validity of the new data
     if (New_consigne_triac.start == START_FRAME && checksum == New_consigne_triac.checksum)
@@ -111,19 +155,87 @@ void serial_receive()
       Serial.print("1: ");
       Serial.print(Consigne_triac.triac_1);
       Serial.print(" 2: ");
-      Serial.print(Consigne_triac.triac_2);
-      Serial.print(" 3: ");
+      Serial.println(Consigne_triac.triac_2);
+      /*Serial.print(" 3: ");
       Serial.print(Consigne_triac.triac_3);
       Serial.print(" 4: ");
-      Serial.println(Consigne_triac.triac_4);
+      Serial.println(Consigne_triac.triac_4);*/
+      msg_succes++;
     }
     else
     {
       Serial.println("Non-valid data skipped");
+      msg_echec++;
     }
     idx = 0; // Reset the index (it prevents to enter in this if condition in the next cycle)
+  }
+  else
+  {
+    incomingBytePrev = incomingByte;
+    return LOW;
   }
 
   // Update previous states
   incomingBytePrev = incomingByte;
+  return HIGH;
+}
+
+// ***********************************************************************
+// ************************     MILLIS DEBUG    **************************
+// ***********************************************************************
+
+void millis_min_max(unsigned int value_depart, unsigned int &value_actuel, unsigned int &value_min, unsigned int &value_max)
+{
+  if (value_depart == 0)
+    return; // valeur pas encore initialisé avec millis
+
+  value_actuel = micros() - value_depart;
+
+  if (value_actuel < value_min)
+    value_min = value_actuel;
+
+  if (value_actuel > value_max)
+    value_max = value_actuel;
+}
+
+// ***********************************************************************
+// *********************     MANAGEMENT TRIAC    *************************
+// ***********************************************************************
+
+void management_triac(const int ZERO_CROSS_PIN,const int GACHETTE_PIN,uint16_t consigne_triac)
+{
+
+  delai_triac = map(consigne_triac, 1, P_MAX, 8400, 2); // valeur voulue , mini, maxi(de la valeur voulue), délai maxi pour avoir 0 et délai mini pour avoir toute la sinusoide)
+  // puissance, 1, 1000, 8500, 1
+
+  zero_cross = digitalRead(ZERO_CROSS_PIN);
+  if (zero_cross != zero_crossMem)
+  {
+    zero_crossMem = zero_cross;
+    if (zero_cross)
+    {
+      triac_on = LOW;
+      gachettemem = HIGH;
+    }
+    else
+    {
+      delayMicroseconds(delai_triac);
+      triac_on = HIGH;
+    }
+  }
+  if (triac_on)
+  {
+    if (consigne_triac > 1 && gachettemem == HIGH)
+    {
+      digitalWrite(GACHETTE_PIN, HIGH);
+      delayMicroseconds(500);
+      digitalWrite(GACHETTE_PIN, LOW);
+      gachettemem = LOW;
+    }
+  }
+  else
+  {
+    digitalWrite(GACHETTE_PIN, LOW);
+    gachettemem = HIGH;
+  }
 }
